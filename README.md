@@ -30,7 +30,9 @@ Local demo recording:
 - [Watch/Download Demo](docs/demo/demo.mp4)
 - Direct path: `docs/demo/demo.mp4`
 
-Note: GitHub may stream or prompt download depending on browser and file size.
+<video src="docs/demo/demo.mp4" controls autoplay muted loop playsinline width="100%"></video>
+
+Note: Autoplay behavior depends on browser and GitHub rendering rules. If autoplay is blocked, use the play button.
 
 Recommended demo flow:
 1. Paste incident logs
