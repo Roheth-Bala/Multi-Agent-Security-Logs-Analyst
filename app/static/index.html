@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SOC Multi-Agent Analyst</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #07121a;
+        --card: rgba(255, 255, 255, 0.05);
+        --text: #eaf2f7;
+        --muted: #9db2bf;
+        --line: rgba(255, 255, 255, 0.15);
+        --ok: #29c88d;
+        --warn: #ffb74d;
+        --danger: #ff6f61;
+        --accent: #19b5ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 10%, #16405a 0, transparent 30%),
+          radial-gradient(circle at 90% 30%, #1a6d59 0, transparent 35%),
+          linear-gradient(135deg, #041018, #0d1820 50%, #081a24);
+      }
+      .layout { width: min(1100px, 92vw); margin: 2rem auto; display: grid; gap: 1rem; }
+      .card {
+        border: 1px solid var(--line);
+        background: var(--card);
+        border-radius: 16px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+        padding: 1rem 1.1rem;
+      }
+      h1, h3 { margin: 0 0 0.6rem; }
+      .subtitle { margin: 0; color: var(--muted); }
+      textarea, input {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--text);
+        padding: 0.75rem;
+        font: 500 0.9rem/1.45 "IBM Plex Mono", monospace;
+      }
+      textarea { min-height: 150px; resize: vertical; }
+      .actions { display: flex; gap: 0.7rem; flex-wrap: wrap; margin-top: 0.8rem; }
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.6rem 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      #analyzeBtn { background: linear-gradient(120deg, #17a7ff, #2dd4bf); color: #041019; }
+      #approveBtn { background: linear-gradient(120deg, #23bb86, #5de2aa); color: #052117; }
+      #rejectBtn { background: linear-gradient(120deg, #f77f71, #ffad7f); color: #2b0907; }
+      #clearBtn, #resetReviewBtn { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .progress-wrap {
+        width: 100%;
+        height: 11px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+      .progress { height: 100%; width: 0%; background: linear-gradient(90deg, #1fb3ff, #29c88d); transition: width .35s; }
+      .status-row { margin-top: 0.65rem; display: flex; justify-content: space-between; color: var(--muted); font-size: 0.9rem; }
+      .steps { margin-top: 0.75rem; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; }
+      .step { border: 1px solid var(--line); border-radius: 10px; padding: 0.45rem; color: var(--muted); text-align: center; font-size: 0.78rem; }
+      .step.active { border-color: var(--accent); color: var(--text); background: rgba(25, 181, 255, 0.16); }
+      .step.done { border-color: var(--ok); color: var(--text); background: rgba(41, 200, 141, 0.15); }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      .hitl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+      .action-list { display: grid; gap: 0.45rem; max-height: 240px; overflow: auto; }
+      .action-item {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.55rem;
+        background: rgba(0, 0, 0, 0.18);
+        display: grid;
+        gap: 0.25rem;
+      }
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 0.1rem 0.45rem;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      pre {
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.28);
+        padding: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font: 500 0.82rem/1.42 "IBM Plex Mono", monospace;
+        max-height: 360px;
+        overflow: auto;
+      }
+      .hint { color: var(--muted); font-size: .82rem; margin: .3rem 0 0; }
+      .hidden { display: none; }
+      .log-line { margin: 0.25rem 0; }
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      .danger { color: var(--danger); }
+      @media (max-width: 900px) {
+        .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .grid, .hitl-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="card">
+        <h1>SOC Multi-Agent Analyst</h1>
+        <p class="subtitle">Real-time incident triage with human-in-the-loop validation</p>
+      </section>
+
+      <section class="card">
+        <label for="incidentInput">Incident Input</label>
+        <textarea id="incidentInput" placeholder="Paste logs, alerts, and incident narrative here..."></textarea>
+        <div class="actions">
+          <button id="analyzeBtn">Run Analysis</button>
+          <button id="clearBtn">Clear</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="progress-wrap"><div class="progress" id="progressBar"></div></div>
+        <div class="status-row">
+          <span id="statusText">Idle</span>
+          <span id="progressText">0%</span>
+        </div>
+        <div class="steps" id="steps"></div>
+      </section>
+
+      <section class="card hidden" id="reviewCard">
+        <h3>Human Validation Required</h3>
+        <p class="hint">Review inferred involved parties and proposed actions, then approve or reject.</p>
+        <div class="hitl-grid">
+          <div>
+            <label for="reviewerInput">Reviewer</label>
+            <input id="reviewerInput" value="human-analyst" />
+          </div>
+          <div>
+            <label for="notesInput">Review Notes</label>
+            <input id="notesInput" placeholder="Optional notes for audit trail" />
+          </div>
+        </div>
+        <div class="hitl-grid" style="margin-top:0.8rem;">
+          <div>
+            <h3>Suggested Involved Parties</h3>
+            <pre id="reviewParties"></pre>
+          </div>
+          <div>
+            <h3>Proposed Agent Actions</h3>
+            <pre id="reviewActions"></pre>
+          </div>
+        </div>
+        <div style="margin-top:0.8rem;">
+          <h3>Simulated In-Memory Entities</h3>
+          <pre id="dummyEntities"></pre>
+        </div>
+        <div style="margin-top:0.8rem;">
+          <h3>Pending Agent Actions (Require Human Approval)</h3>
+          <div id="actionList" class="action-list"></div>
+          <p class="hint">Only checked actions will be executed in simulated in-memory state.</p>
+        </div>
+        <div class="actions">
+          <button id="approveBtn">Approve</button>
+          <button id="rejectBtn">Reject</button>
+          <button id="resetReviewBtn">Hide Panel</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h3>Live Event Log</h3>
+          <pre id="eventLog"></pre>
+        </article>
+        <article class="card">
+          <h3>Report (Text)</h3>
+          <pre id="reportText"></pre>
+        </article>
+      </section>
+
+      <section class="card">
+        <h3>Report (JSON)</h3>
+        <pre id="reportJson"></pre>
+      </section>
+    </main>
+
+    <script>
+      const pipeline = [
+        { id: "ioc_agent", label: "IOC Extraction" },
+        { id: "mitre_agent", label: "MITRE Mapping" },
+        { id: "cve_agent", label: "CVE Intelligence" },
+        { id: "investigation_agent", label: "Investigation Plan" },
+        { id: "report_agent", label: "Report Generation" },
+      ];
+
+      const state = {
+        pendingSessionId: null,
+        pendingRecommendation: null,
+        pendingActions: [],
+      };
+
+      const refs = {
+        incidentInput: document.getElementById("incidentInput"),
+        analyzeBtn: document.getElementById("analyzeBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        approveBtn: document.getElementById("approveBtn"),
+        rejectBtn: document.getElementById("rejectBtn"),
+        resetReviewBtn: document.getElementById("resetReviewBtn"),
+        reviewerInput: document.getElementById("reviewerInput"),
+        notesInput: document.getElementById("notesInput"),
+        reviewCard: document.getElementById("reviewCard"),
+        reviewParties: document.getElementById("reviewParties"),
+        reviewActions: document.getElementById("reviewActions"),
+        dummyEntities: document.getElementById("dummyEntities"),
+        actionList: document.getElementById("actionList"),
+        progressBar: document.getElementById("progressBar"),
+        progressText: document.getElementById("progressText"),
+        statusText: document.getElementById("statusText"),
+        steps: document.getElementById("steps"),
+        eventLog: document.getElementById("eventLog"),
+        reportText: document.getElementById("reportText"),
+        reportJson: document.getElementById("reportJson"),
+      };
+
+      function renderSteps(current = null, done = []) {
+        refs.steps.innerHTML = "";
+        for (const step of pipeline) {
+          const div = document.createElement("div");
+          div.className = "step";
+          if (done.includes(step.id)) div.classList.add("done");
+          if (current === step.id) div.classList.add("active");
+          div.textContent = step.label;
+          refs.steps.appendChild(div);
+        }
+      }
+
+      function setProgress(percent, status) {
+        refs.progressBar.style.width = `${percent}%`;
+        refs.progressText.textContent = `${percent}%`;
+        refs.statusText.textContent = status;
+      }
+
+      function log(message, cls = "") {
+        const line = document.createElement("p");
+        line.className = `log-line ${cls}`;
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        refs.eventLog.appendChild(line);
+        refs.eventLog.scrollTop = refs.eventLog.scrollHeight;
+      }
+
+      function setReviewVisibility(show) {
+        refs.reviewCard.classList.toggle("hidden", !show);
+      }
+
+      function renderValidationPayload(recommendation) {
+        refs.reviewParties.textContent = JSON.stringify(recommendation?.involved_parties || {}, null, 2);
+        refs.reviewActions.textContent = JSON.stringify(
+          {
+            proposed_actions: recommendation?.proposed_actions || [],
+            reasoning_summary: recommendation?.reasoning_summary || "",
+          },
+          null,
+          2
+        );
+      }
+
+      function renderDummyEntities(entities) {
+        refs.dummyEntities.textContent = JSON.stringify(entities || {}, null, 2);
+      }
+
+      function renderActionList(actions) {
+        refs.actionList.innerHTML = "";
+        const list = Array.isArray(actions) ? actions : [];
+        if (!list.length) {
+          const empty = document.createElement("p");
+          empty.className = "hint";
+          empty.textContent = "No proposed actions.";
+          refs.actionList.appendChild(empty);
+          return;
+        }
+
+        for (const action of list) {
+          const row = document.createElement("label");
+          row.className = "action-item";
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = true;
+          cb.dataset.actionId = action.action_id;
+          const title = document.createElement("strong");
+          title.textContent = action.title || action.action_type || "Action";
+          const summary = document.createElement("span");
+          summary.textContent = action.summary || "";
+          const meta = document.createElement("span");
+          meta.innerHTML = `<span class="pill">risk: ${action.risk || "n/a"}</span> <span class="pill">${action.target_kind || "target"}:${action.target_id || "n/a"}</span>`;
+          row.appendChild(cb);
+          row.appendChild(title);
+          row.appendChild(summary);
+          row.appendChild(meta);
+          refs.actionList.appendChild(row);
+        }
+      }
+
+      function getSelectedActionIds() {
+        const boxes = refs.actionList.querySelectorAll("input[type=checkbox][data-action-id]");
+        const ids = [];
+        for (const box of boxes) {
+          if (box.checked) ids.push(box.dataset.actionId);
+        }
+        return ids;
+      }
+
+      function resetUI() {
+        refs.eventLog.textContent = "";
+        refs.reportText.textContent = "";
+        refs.reportJson.textContent = "";
+        refs.notesInput.value = "";
+        setProgress(0, "Idle");
+        renderSteps();
+        setReviewVisibility(false);
+        state.pendingSessionId = null;
+        state.pendingRecommendation = null;
+        state.pendingActions = [];
+        refs.dummyEntities.textContent = "";
+        refs.actionList.innerHTML = "";
+      }
+
+      async function submitDecision(decision) {
+        if (!state.pendingSessionId) return;
+        refs.approveBtn.disabled = true;
+        refs.rejectBtn.disabled = true;
+        try {
+          log(`Submitting human decision: ${decision}...`);
+          const response = await fetch(`/review/${state.pendingSessionId}/decision`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              decision,
+              reviewer: refs.reviewerInput.value || "human-analyst",
+              notes: refs.notesInput.value || "",
+              overrides: state.pendingRecommendation?.involved_parties || {},
+              selected_action_ids: decision === "approved" ? getSelectedActionIds() : [],
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            log(data?.detail?.message || "Failed to submit review decision.", "danger");
+            return;
+          }
+          const result = data.result || {};
+          refs.reportText.textContent = result.report_text || "No report text";
+          refs.reportJson.textContent = JSON.stringify(result.report || {}, null, 2);
+          setProgress(100, decision === "approved" ? "Approved" : "Rejected");
+          log(`Decision applied: ${decision}. Final report updated.`, decision === "approved" ? "ok" : "warn");
+          setReviewVisibility(false);
+          state.pendingSessionId = null;
+        } catch (err) {
+          log(`Review submission error: ${err}`, "danger");
+        } finally {
+          refs.approveBtn.disabled = false;
+          refs.rejectBtn.disabled = false;
+        }
+      }
+
+      async function runAnalysis() {
+        const incident = refs.incidentInput.value.trim();
+        if (incident.length < 10) {
+          log("Incident text must contain at least 10 characters.", "warn");
+          return;
+        }
+        refs.analyzeBtn.disabled = true;
+        resetUI();
+        log("Connecting to analysis stream...");
+
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        const ws = new WebSocket(`${protocol}://${location.host}/ws/analyze`);
+        const completed = [];
+
+        ws.onopen = () => {
+          log("Connection established.", "ok");
+          ws.send(JSON.stringify({ incident }));
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === "status") {
+            setProgress(data.progress || 0, data.message || "Running...");
+            log(data.message || "Pipeline started");
+            return;
+          }
+          if (data.type === "step") {
+            if (!completed.includes(data.node)) completed.push(data.node);
+            renderSteps(data.node, completed);
+            setProgress(data.progress || 0, data.message || "Processing...");
+            log(data.message || data.node, "ok");
+            return;
+          }
+          if (data.type === "validation_required") {
+            setProgress(100, "Awaiting Human Validation");
+            renderSteps(null, pipeline.map((x) => x.id));
+            state.pendingSessionId = data.session_id;
+            state.pendingRecommendation = data.recommendation || {};
+            state.pendingActions = data.proposed_actions || [];
+            renderValidationPayload(state.pendingRecommendation);
+            renderDummyEntities(data.dummy_entities || {});
+            renderActionList(state.pendingActions);
+            setReviewVisibility(true);
+            log(`Validation required. Session: ${data.session_id}`, "warn");
+            return;
+          }
+          if (data.type === "error") {
+            setProgress(0, "Failed");
+            log(data.detail?.message || "Analysis failed.", "danger");
+            if (data.detail?.provider_detail) log(data.detail.provider_detail, "warn");
+            return;
+          }
+          if (data.type === "done") ws.close();
+        };
+
+        ws.onerror = () => log("WebSocket connection error.", "danger");
+        ws.onclose = () => {
+          refs.analyzeBtn.disabled = false;
+          log("Stream closed.");
+        };
+      }
+
+      refs.analyzeBtn.addEventListener("click", runAnalysis);
+      refs.clearBtn.addEventListener("click", () => {
+        refs.incidentInput.value = "";
+        resetUI();
+      });
+      refs.approveBtn.addEventListener("click", () => submitDecision("approved"));
+      refs.rejectBtn.addEventListener("click", () => submitDecision("rejected"));
+      refs.resetReviewBtn.addEventListener("click", () => setReviewVisibility(false));
+
+      renderSteps();
+    </script>
+  </body>
+</html>

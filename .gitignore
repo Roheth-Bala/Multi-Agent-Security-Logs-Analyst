@@ -1,0 +1,29 @@
+# Python venv
+.venv/
+venv/
+env/
+
+# Compilados Python
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Datos sensibles
+output/
+.env
+.env.*
+!.env.example
+
+# Archivos temporales
+*.tmp
+*.temp
+.DS_Store
+tmp/
+tests/
+docs/changes/
